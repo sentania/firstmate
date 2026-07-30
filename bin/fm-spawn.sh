@@ -59,7 +59,7 @@
 #   profile consultation. A --secondmate spawn is exempt and resolves the SECONDMATE
 #   harness (config/secondmate-harness -> config/crew-harness -> own), so the
 #   secondmate-vs-crewmate split is DURABLE across every respawn (recovery,
-#   /updatefirstmate, restart). A bare adapter name (claude|codex|opencode|pi|pi-signed|grok|kimi)
+#   /updatefirstmate, restart). A bare adapter name (claude|codex|opencode|pi|pi-signed|grok|kimi|agy)
 #   overrides it for this spawn (either kind). A non-flag string containing
 #   whitespace is treated as a RAW launch command - the escape hatch for verifying
 #   new adapters. pi-signed launches that exact executable name from PATH and
@@ -107,6 +107,8 @@
 # a firstmate-owned global hook and registry, and a gitignored per-task pointer.
 # grok uses a firstmate-owned global hook under ${GROK_HOME:-$HOME/.grok}/hooks
 # plus a gitignored .fm-grok-turnend worktree pointer and a state token.
+# Agy uses the first available unoccupied customization root in the task
+# worktree, a private state registry, and a gitignored per-task pointer.
 # On success prints: spawned <id> harness=<name> kind=<ship|scout|secondmate> mode=<mode> yolo=<on|off> window=<backend-target> worktree=<path>
 # mode/yolo are resolved per-project from data/projects.md for ship/scout tasks;
 # secondmate spawns record mode=secondmate, yolo=off, home=, and projects=.
@@ -161,6 +163,8 @@ SUB_HOME_MARKER=".fm-secondmate-home"
 . "$SCRIPT_DIR/fm-gate-refuse-lib.sh"
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
+# shellcheck source=bin/fm-composer-lib.sh
+. "$SCRIPT_DIR/fm-composer-lib.sh"
 # Fail closed before any fleet mutation: a no-mistakes gate agent must never spawn
 # a direct report (see bin/fm-gate-refuse-lib.sh).
 fm_refuse_if_gate_agent
@@ -409,7 +413,7 @@ FIRSTMATE_HOME=
 
 if [ "$KIND" = secondmate ]; then
   case "${POS[1]:-}" in
-    ''|claude|codex|opencode|pi|pi-signed|grok|kimi)
+    ''|claude|codex|opencode|pi|pi-signed|grok|kimi|agy)
       ARG3=${POS[1]:-}
       ;;
     *' '*)
@@ -475,6 +479,10 @@ launch_template() {
     # Its turn-end signal is a globally configured Stop hook plus a guarded
     # per-task worktree token, so no launch placeholder belongs here.
     kimi) printf '%s' '__KIMIBIN__ __MODELFLAG__--auto' ;;
+    # Agy's interactive TUI is the persistent steering surface.
+    # Launch bare so the project trust gate and Stop hooks settle before the
+    # first turn, then deliver only the absolute brief pointer below.
+    agy) printf '%s' 'agy __MODELFLAG____EFFORTFLAG__--dangerously-skip-permissions' ;;
     *) return 1 ;;
   esac
 }
@@ -598,7 +606,7 @@ model_flag_for_harness() {
   local harness=$1 model=$2
   [ -n "$model" ] && [ "$model" != default ] || return 0
   case "$harness" in
-    claude|codex|opencode|pi|pi-signed|grok|kimi)
+    claude|codex|opencode|pi|pi-signed|grok|kimi|agy)
       printf -- '--model %s ' "$(shell_quote "$model")"
       ;;
   esac
@@ -628,6 +636,12 @@ effort_flag_for_harness() {
       # than passing a known-bad value.
       case "$effort" in
         low|medium|high) printf -- '--reasoning-effort %s ' "$(shell_quote "$effort")" ;;
+      esac
+      ;;
+    agy)
+      # Agy 1.1.8 accepts low, medium, and high and rejects xhigh and max.
+      case "$effort" in
+        low|medium|high) printf -- '--effort %s ' "$(shell_quote "$effort")" ;;
       esac
       ;;
     pi|pi-signed)
@@ -1258,6 +1272,62 @@ kimi_spawn_fail() {  # <detail>
   echo "error: $1; inspect window $T" >&2
 }
 
+agy_capture() {
+  fm_backend_capture "$BACKEND" "$T" 160 "$W" 2>/dev/null || true
+}
+
+agy_capture_has_trust_dialog() {  # <plain-pane-capture>
+  printf '%s\n' "$1" \
+    | grep -Eq '^[[:space:]]*Do you trust the contents of this project[?][[:space:]]*$' \
+    && printf '%s\n' "$1" \
+      | grep -Eq '^[[:space:]]*>[[:space:]]*Yes, I trust this folder[[:space:]]*$' \
+    && printf '%s\n' "$1" \
+      | grep -Eq '^[[:space:]]*No, exit[[:space:]]*$'
+}
+
+agy_capture_has_empty_composer() {  # <plain-pane-capture>
+  [ "$(fm_composer_separated_state "$1" 2>/dev/null || printf unknown)" = empty ]
+}
+
+agy_wait_for_ready() {
+  local pane i=0 max=${FM_AGY_READY_POLLS:-80} interval=${FM_AGY_POLL_INTERVAL:-0.5}
+  local trust_accepted=0
+  while [ "$i" -lt "$max" ]; do
+    pane=$(agy_capture)
+    if agy_capture_has_trust_dialog "$pane"; then
+      if [ "$trust_accepted" -eq 0 ]; then
+        spawn_send_key "$T" Enter || return 1
+        trust_accepted=1
+      fi
+    elif agy_capture_has_empty_composer "$pane"; then
+      return 0
+    fi
+    i=$((i + 1))
+    [ "$i" -ge "$max" ] || sleep "$interval"
+  done
+  return 1
+}
+
+agy_wait_for_delivery() {
+  local pane i=0 max=${FM_AGY_DELIVERY_POLLS:-40} interval=${FM_AGY_POLL_INTERVAL:-0.5}
+  while [ "$i" -lt "$max" ]; do
+    pane=$(agy_capture)
+    if [ -e "$TURNEND" ] \
+       || { printf '%s\n' "$pane" | grep -Fq 'Read the brief at' \
+            && printf '%s\n' "$pane" | grep -Fq 'esc to cancel'; }; then
+      return 0
+    fi
+    i=$((i + 1))
+    [ "$i" -ge "$max" ] || sleep "$interval"
+  done
+  return 1
+}
+
+agy_spawn_fail() {  # <detail>
+  printf 'failed: %s\n' "$1" >> "$STATE/$ID.status"
+  echo "error: $1; inspect window $T" >&2
+}
+
 if [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   spawn_send_text_line "$WT_TARGET" 'treehouse get'
 
@@ -1432,6 +1502,47 @@ EOF
       printf 'token=%s\n' "${auth_file##*/}" > "$WT/.fm-kimi-turnend"
       exclude_path '.fm-kimi-turnend'
       ;;
+    agy*)
+      # Agy discovers task-local hooks from four supported customization roots.
+      # Never merge with or overwrite a project's hooks.json.
+      # Select the first unoccupied root and fail closed when every root is
+      # already owned by the project.
+      AGY_HOOK_ROOT=
+      for candidate in .agents .agent _agents _agent; do
+        if { [ ! -e "$WT/$candidate" ] && [ ! -L "$WT/$candidate" ]; } \
+           || { [ -d "$WT/$candidate" ] && [ ! -L "$WT/$candidate" ] \
+                && [ ! -e "$WT/$candidate/hooks.json" ] \
+                && [ ! -L "$WT/$candidate/hooks.json" ]; }; then
+          AGY_HOOK_ROOT=$candidate
+          break
+        fi
+      done
+      if [ -z "$AGY_HOOK_ROOT" ]; then
+        echo "error: refusing Agy spawn because .agents, .agent, _agents, and _agent already contain hooks.json or are unsafe; Firstmate will not merge or overwrite project hook configuration" >&2
+        exit 1
+      fi
+      AGY_AUTH_DIR="$STATE_REAL/agy-turn-end.d"
+      mkdir -p "$AGY_AUTH_DIR" "$WT/$AGY_HOOK_ROOT"
+      chmod 700 "$AGY_AUTH_DIR"
+      old_umask=$(umask)
+      umask 077
+      auth_file=$(mktemp "$AGY_AUTH_DIR/fm.XXXXXXXXXXXX")
+      umask "$old_umask"
+      token=${auth_file##*/}
+      printf '%s\n' "$TURNEND" > "$auth_file"
+      printf '%s\n%s\n' "$token" "$AGY_HOOK_ROOT" > "$STATE/$ID.agy-turnend-token"
+      printf 'token=%s\n' "$token" > "$WT/.fm-agy-turnend"
+      agy_command=$(printf 'bash %s %s %s %s' \
+        "$(shell_quote "$FM_ROOT/bin/fm-agy-turnend-hook.sh")" \
+        "$(shell_quote "$AGY_AUTH_DIR")" \
+        "$(shell_quote "$token")" \
+        "$(shell_quote "$WT")")
+      agy_command=$(json_escape "$agy_command")
+      printf '{"firstmate-task-turn-end-%s":{"Stop":[{"type":"command","command":"%s","timeout":10}]}}\n' \
+        "$token" "$agy_command" > "$WT/$AGY_HOOK_ROOT/hooks.json"
+      exclude_path '.fm-agy-turnend'
+      exclude_path "$AGY_HOOK_ROOT/hooks.json"
+      ;;
   esac
 fi
 
@@ -1558,6 +1669,30 @@ if [ "$HARNESS" = kimi ]; then
   fi
   if ! kimi_wait_for_delivery; then
     kimi_spawn_fail "kimi brief pointer delivery was not confirmed"
+    exit 1
+  fi
+fi
+if [ "$HARNESS" = agy ]; then
+  if ! agy_wait_for_ready; then
+    agy_spawn_fail "Agy did not show the verified trust or ready surface before brief delivery"
+    exit 1
+  fi
+  AGY_POINTER="Read the brief at $BRIEF_REAL and follow it exactly."
+  AGY_SUBMIT_RETRIES=${FM_AGY_SUBMIT_RETRIES:-3}
+  AGY_SUBMIT_SLEEP=${FM_AGY_SUBMIT_SLEEP:-${FM_AGY_POLL_INTERVAL:-0.5}}
+  AGY_SUBMIT_SETTLE=${FM_AGY_SUBMIT_SETTLE:-0}
+  AGY_SUBMIT_VERDICT=$(fm_backend_send_text_submit \
+    "$BACKEND" "$T" "$AGY_POINTER" "$AGY_SUBMIT_RETRIES" \
+    "$AGY_SUBMIT_SLEEP" "$AGY_SUBMIT_SETTLE" "$W") || {
+    agy_spawn_fail "Agy brief pointer could not be submitted"
+    exit 1
+  }
+  if [ "$AGY_SUBMIT_VERDICT" != empty ]; then
+    agy_spawn_fail "Agy brief pointer submission was not proven empty after Enter ($AGY_SUBMIT_VERDICT)"
+    exit 1
+  fi
+  if ! agy_wait_for_delivery; then
+    agy_spawn_fail "Agy brief pointer delivery was not confirmed"
     exit 1
   fi
 fi

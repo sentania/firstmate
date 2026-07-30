@@ -206,6 +206,28 @@ remove_kimi_turnend_auth() {
   rm -f "$hooks_dir/$token"
 }
 
+remove_agy_turnend_auth() {
+  local state_dir=$1 id=$2 token auth_dir
+  token=$(sed -n '1p' "$state_dir/$id.agy-turnend-token" 2>/dev/null || true)
+  case "$token" in fm.????????????) ;; *) return 0 ;; esac
+  case "$token" in *[!A-Za-z0-9._-]*) return 0 ;; esac
+  auth_dir="$state_dir/agy-turn-end.d"
+  rm -f "$auth_dir/$token"
+  rmdir "$auth_dir" 2>/dev/null || true
+}
+
+remove_agy_task_hook() {
+  local wt=$1 state_dir=$2 id=$3 token hook_root
+  [ -n "$wt" ] && [ -d "$wt" ] || return 0
+  token=$(sed -n '1p' "$state_dir/$id.agy-turnend-token" 2>/dev/null || true)
+  hook_root=$(sed -n '2p' "$state_dir/$id.agy-turnend-token" 2>/dev/null || true)
+  case "$token" in fm.????????????) ;; *) return 0 ;; esac
+  case "$token" in *[!A-Za-z0-9._-]*) return 0 ;; esac
+  case "$hook_root" in .agents|.agent|_agents|_agent) ;; *) return 0 ;; esac
+  rm -f "$wt/$hook_root/hooks.json" "$wt/.fm-agy-turnend"
+  rmdir "$wt/$hook_root" 2>/dev/null || true
+}
+
 validate_pr_poll_cleanup() {
   local state_dir=$1 id=$2 quarantine state_device artifact has_artifact=0
   fm_task_id_path_safe "$id" || return 0
@@ -1013,12 +1035,14 @@ cleanup_firstmate_home_children() {
     elif [ "$child_backend" = orca ]; then
       if [ -n "$child_wt" ] && [ -d "$child_wt" ]; then
         validate_child_worktree_for_removal "$child_wt" "$child_proj" >/dev/null || return 1
+        remove_agy_task_hook "$child_wt" "$sub_state" "$child_id"
         rm -f "$child_wt/.claude/settings.local.json" "$child_wt/.opencode/plugins/fm-turn-end.js" \
           "$child_wt/.fm-grok-turnend" "$child_wt/.fm-kimi-turnend"
       fi
       fm_backend_remove_worktree "$child_backend" "$child_orca_worktree_id" || return 1
     elif [ -n "$child_wt" ] && [ -d "$child_wt" ]; then
       validate_child_worktree_for_removal "$child_wt" "$child_proj" >/dev/null || return 1
+      remove_agy_task_hook "$child_wt" "$sub_state" "$child_id"
       rm -f "$child_wt/.claude/settings.local.json" "$child_wt/.opencode/plugins/fm-turn-end.js" \
         "$child_wt/.fm-grok-turnend" "$child_wt/.fm-kimi-turnend"
       if [ -n "$child_proj" ] && [ -d "$child_proj" ] && command -v treehouse >/dev/null 2>&1; then
@@ -1037,10 +1061,12 @@ cleanup_firstmate_home_children() {
     fi
     remove_grok_turnend_auth "$sub_state" "$child_id"
     remove_kimi_turnend_auth "$sub_state" "$child_id"
+    remove_agy_turnend_auth "$sub_state" "$child_id"
     remove_pr_poll_artifacts "$sub_state" "$child_id" || return 1
     rm -f "$sub_state/$child_id.status" "$sub_state/$child_id.turn-ended" \
       "$sub_state/$child_id.meta" "$sub_state/$child_id.pi-ext.ts" \
-      "$sub_state/$child_id.grok-turnend-token" "$sub_state/$child_id.kimi-turnend-token"
+      "$sub_state/$child_id.grok-turnend-token" "$sub_state/$child_id.kimi-turnend-token" \
+      "$sub_state/$child_id.agy-turnend-token"
   done
 }
 
@@ -1130,6 +1156,7 @@ if [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then
         git -C "$WT" branch -D "$branch" >/dev/null 2>&1 || true
       fi
     fi
+    remove_agy_task_hook "$WT" "$STATE" "$ID"
     rm -f "$WT/.claude/settings.local.json" "$WT/.opencode/plugins/fm-turn-end.js" \
       "$WT/.fm-grok-turnend" "$WT/.fm-kimi-turnend"
   fi
@@ -1143,6 +1170,7 @@ elif [ -d "$WT" ] && [ "$KIND" != secondmate ]; then
     fi
   fi
   # Remove our hook file so a reused pool worktree cannot fire signals for a dead task.
+  remove_agy_task_hook "$WT" "$STATE" "$ID"
   rm -f "$WT/.claude/settings.local.json" "$WT/.opencode/plugins/fm-turn-end.js" \
     "$WT/.fm-grok-turnend" "$WT/.fm-kimi-turnend"
   # Kills remaining processes in the worktree (including the agent), resets, returns
@@ -1224,6 +1252,7 @@ if [ "$KIND" = secondmate ]; then
 fi
 remove_grok_turnend_auth "$STATE" "$ID"
 remove_kimi_turnend_auth "$STATE" "$ID"
+remove_agy_turnend_auth "$STATE" "$ID"
 fm_backend_clear_transition "$BACKEND" "$STATE" "$T" || true
 # Remove the per-task temp root (/tmp/fm-<id>/, incl. its gotmp/) recorded by spawn.
 # Read before the state-file rm below; empty (pre-fix tasks without tasktmp=) is a no-op.
@@ -1231,7 +1260,7 @@ fm_backend_clear_transition "$BACKEND" "$STATE" "$T" || true
 remove_pr_poll_artifacts "$STATE" "$ID" || exit 1
 rm -f "$STATE/$ID.status" "$STATE/$ID.turn-ended" "$STATE/$ID.meta" \
   "$STATE/$ID.pi-ext.ts" "$STATE/$ID.grok-turnend-token" \
-  "$STATE/$ID.kimi-turnend-token"
+  "$STATE/$ID.kimi-turnend-token" "$STATE/$ID.agy-turnend-token"
 if [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$MODE" != local-only ]; then
   "$FM_ROOT/bin/fm-fleet-sync.sh" "$PROJ" || true
 fi
