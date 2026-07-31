@@ -46,7 +46,7 @@ Verify setup by spawning a small task and confirming its `fm-<id>` window appear
 
 A target-existence check proves only that the pane exists.
 The deeper tmux agent-liveness probe first verifies exact window membership, then reads `#{pane_current_command}` to distinguish a running harness process from a bare idle shell.
-It classifies recognized Claude, Codex, OpenCode, Pi, pi-signed, Grok, and Kimi process names as `alive`, common shells as `dead`, an authoritatively absent window as `missing`, unreadable state as `unreadable`, and every other process as `ambiguous`.
+It classifies recognized Claude, Codex, OpenCode, Pi, pi-signed, Grok, Kimi, and Agy process names as `alive`, common shells as `dead`, an authoritatively absent window as `missing`, unreadable state as `unreadable`, and every other process as `ambiguous`.
 Only `dead` and `missing` authorize recovery because a false dead result could launch a duplicate agent.
 
 The verified Pi Launcher path reports the exact foreground command `pi-launcher` for both pi and pi-signed, while direct executable identities `pi`, `pi-signed`, and `Pi` remain accepted exactly.
@@ -55,8 +55,10 @@ Similar or prefixed process names are not accepted through those exact Pi-family
 Agent liveness and composer safety are separate checks.
 For a bordered composer, the tmux reader locates the complete box structurally and classifies every content row through the shared ANSI and ghost handling in `bin/fm-composer-lib.sh`.
 Real text on any content row is pending, while only an unambiguous box with every row empty is proven empty.
-Unreadable, incomplete, or structurally ambiguous boxes fail closed, and panes without a bordered composer retain the compatible cursor-row classification.
-The shared classifier accepts a shell glyph as an empty agent composer only inside a verified bordered composer.
+Before the bordered-box path, the reader recognizes Agy's unbordered composer through the shared `fm_composer_separated_state` proof: two long separator rows around a `>` prompt with Agy's verified footer, plus the cursor inside that container.
+That proof is harness-scoped: it runs only when the caller declares the target's recorded harness is `agy` via `FM_COMPOSER_HARNESS`, because the separator rows and footer text also appear in Claude transcript output; any other pane falls through to its own classifier.
+Unreadable, incomplete, or structurally ambiguous boxes fail closed, and panes with neither structure retain the compatible cursor-row classification.
+The shared classifier accepts a shell glyph as an empty agent composer only inside a verified bordered composer or Agy's complete separator container.
 A bare shell prompt is `unknown`, so away-mode escalation is never injected into a dead shell.
 
 Rendered busy detection is also harness-scoped.
@@ -82,6 +84,7 @@ Ambiguous pending text never receives the busy-queue conversion.
 
 ```sh
 tests/fm-backend-tmux-smoke.test.sh
+tests/fm-agy-harness.test.sh
 tests/fm-composer-ghost.test.sh
 tests/fm-kimi-harness.test.sh
 tests/fm-tmux-submit-busy.test.sh
