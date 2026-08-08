@@ -67,7 +67,7 @@ test_separated_composer_is_harness_scoped() {
   local state
   # shellcheck source=bin/fm-composer-lib.sh
   . "$ROOT/bin/fm-composer-lib.sh"
-  state=$(FM_COMPOSER_HARNESS= fm_composer_separated_state "$(agy_empty_capture)")
+  state=$(FM_COMPOSER_HARNESS='' fm_composer_separated_state "$(agy_empty_capture)")
   [ -z "$state" ] || fail "unscoped separated check claimed a pane as an Agy composer: $state"
   state=$(FM_COMPOSER_HARNESS=claude fm_composer_separated_state "$(claude_lookalike_capture)")
   [ -z "$state" ] || fail "a Claude rule/quote/rule transcript was claimed as an Agy composer: $state"
@@ -191,7 +191,7 @@ run_spawn() {
     FM_FAKE_BRIEF_REAL="$(cd "$home/data/$id" && pwd -P)/brief.md" \
     FM_AGY_READY_POLLS=5 FM_AGY_DELIVERY_POLLS=3 FM_AGY_POLL_INTERVAL=0 \
     PATH="$fakebin:$BASE_PATH" \
-    "$SPAWN" "$id" "$proj" --harness agy "$@" 2>&1
+    "$SPAWN" "$id" "$proj" --harness agy --mode no-mistakes --yolo off "$@" 2>&1
 }
 
 read_spawn_record() {
