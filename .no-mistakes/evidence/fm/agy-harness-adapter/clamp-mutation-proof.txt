@@ -1,0 +1,13 @@
+=== MUTATION PROOF: sanity clamp removed from bin/fm-composer-lib.sh ===
+ok - fm_composer_queued_enter_verdict: pending + busy returns empty (queued Enter)
+ok - fm_composer_queued_enter_verdict: pending + idle/unknown stays pending
+ok - fm_composer_queued_enter_verdict: only proven pending is converted
+/home/scott/.no-mistakes/worktrees/bf67b868af46/01M25VHW7RKFNP0AXM5MEQVHQJ/bin/fm-composer-lib.sh: line 1510: [: nonsense: integer expression expected
+not ok - a non-numeric override did not clamp back to the default bound, got ''
+EXIT_WITH_CLAMP_REMOVED=1
+
+=== RESTORED: sanity clamp present ===
+ok - fm_composer_queued_enter_verdict: pending + idle/unknown stays pending
+ok - fm_composer_queued_enter_verdict: only proven pending is converted
+ok - fm_composer_separated_state: FM_COMPOSER_AGY_MAX_LINES bounds the Agy container height
+EXIT_WITH_CLAMP_RESTORED=0

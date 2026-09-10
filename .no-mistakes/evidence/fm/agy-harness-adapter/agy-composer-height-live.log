@@ -1,0 +1,69 @@
+# spawning agy 1.2.0
+# spawn rc=0 : spawned agytall-357562 harness=agy kind=scout window=firstmate:fm-agytall-357562 worktree=/tmp/fm-agy-tall.IFPX2p/treehouse/.treehouse/agytall-c1ef70/1/agytall
+# composer before paste: empty
+
+=== REAL AGY PANE: six-line pasted draft (6 rendered composer rows) ===
+19:  AGY_TALL_OK
+21:────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+22:> pasted captain steer line 1
+23:  line 2
+24:  line 3
+25:  line 4
+26:  line 5
+27:  line 6
+28:────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+29:                                                                                                                                                                                  Gemini 3.8 Flash · low
+--- separator rows in the capture (1-indexed) ---
+  row 14
+  row 21
+  row 28
+--- product verdict (bin/fm-tmux-lib.sh fm_tmux_composer_state, FM_COMPOSER_HARNESS=agy) ---
+  default bound (unset -> 7)      : 'pending'
+  raised  bound (=20)             : 'pending'
+  clamped bound (=nonsense -> 7)  : 'pending'
+
+=== REAL AGY PANE: seven-line pasted draft (7 rendered composer rows) ===
+19:  AGY_TALL_OK
+21:────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+22:> pasted captain steer line 1
+23:  line 2
+24:  line 3
+25:  line 4
+26:  line 5
+27:  line 6
+28:  line 7
+29:────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+30:                                                                                                                                                                                  Gemini 3.8 Flash · low
+--- separator rows in the capture (1-indexed) ---
+  row 14
+  row 21
+  row 29
+--- product verdict (bin/fm-tmux-lib.sh fm_tmux_composer_state, FM_COMPOSER_HARNESS=agy) ---
+  default bound (unset -> 7)      : 'unknown'
+  raised  bound (=20)             : 'pending'
+  clamped bound (=nonsense -> 7)  : 'unknown'
+
+=== REAL AGY PANE: ten-line pasted draft (10 rendered composer rows) ===
+19:  AGY_TALL_OK
+21:────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+22:> pasted captain steer line 1
+23:  line 2
+24:  line 3
+25:  line 4
+26:  line 5
+27:  line 6
+28:  line 7
+29:  line 8
+30:  line 9
+31:  line 10
+32:────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+33:                                                                                                                                                                                  Gemini 3.8 Flash · low
+--- separator rows in the capture (1-indexed) ---
+  row 14
+  row 21
+  row 32
+--- product verdict (bin/fm-tmux-lib.sh fm_tmux_composer_state, FM_COMPOSER_HARNESS=agy) ---
+  default bound (unset -> 7)      : 'unknown'
+  raised  bound (=20)             : 'pending'
+  clamped bound (=nonsense -> 7)  : 'unknown'
+EXIT=0

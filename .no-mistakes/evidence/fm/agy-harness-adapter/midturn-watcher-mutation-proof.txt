@@ -1,0 +1,7 @@
+=== MUTATION PROOF: agy family prefix narrowed to exact 'agy' in bin/fm-busy-lib.sh ===
+not ok - the watcher did not treat a mid-turn raw-launched Agy pane as busy
+EXIT_WITH_PREFIX_NARROWED=1
+
+=== RESTORED: grok*|agy* family prefix present ===
+ok - the watcher holds a mid-turn raw-launched Agy pane instead of ringing it
+EXIT_WITH_PREFIX_RESTORED=0
